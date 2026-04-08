@@ -10,7 +10,7 @@ public class AlarmManager : MonoBehaviour
     public float initialDelay = 3f;              // 游戏开始后等待3秒再触发第一个闹钟
 
     private int intervalIndex = 0;
-    private bool isTriggering = false;
+   // private bool isTriggering = false;
 
     void Start()
     {
@@ -34,7 +34,7 @@ public class AlarmManager : MonoBehaviour
 
     IEnumerator TriggerLoop()
     {
-        isTriggering = true;
+       // isTriggering = true;
         while (true)
         {
             // 获取本次需要等待的时间
@@ -67,10 +67,16 @@ public class AlarmManager : MonoBehaviour
         }
     }
 
+
     void TriggerRandomAlarm()
     {
-        var available = allClocks.Where(c => !c.IsRinging).ToList();
-        if (available.Count == 0) return;
+        // 过滤掉 null 元素
+        var available = allClocks.Where(c => c != null && !c.IsRinging).ToList();
+        if (available.Count == 0)
+        {
+            Debug.LogWarning("没有可触发的闹钟（可能全部为 null 或都在响铃）");
+            return;
+        }
         int rand = Random.Range(0, available.Count);
         available[rand].StartRinging();
     }

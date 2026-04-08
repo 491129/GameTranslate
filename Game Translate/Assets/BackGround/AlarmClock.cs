@@ -1,4 +1,6 @@
+using Unity.Burst.CompilerServices;
 using UnityEngine;
+using static AC2;
 
 public class AlarmClock : MonoBehaviour
 {
@@ -14,6 +16,8 @@ public class AlarmClock : MonoBehaviour
 
     public bool IsRinging => isRinging;
 
+    private AudioClip originalClip;   // 保存原始铃声
+
     void Start()
     {
         if (alarmSource == null) alarmSource = GetComponent<AudioSource>();
@@ -21,6 +25,8 @@ public class AlarmClock : MonoBehaviour
         if (targetPanel != null) targetPanel.SetActive(false);
         if (clothObject != null) clothFlip = clothObject.GetComponent<Drag>();
         else Debug.LogWarning($"闹钟 {clockID} 没有关联桌布，将始终允许点击");
+        if (alarmSource != null)
+            originalClip = alarmSource.clip; // 记录初始铃声
     }
 
     void Update()
@@ -30,6 +36,11 @@ public class AlarmClock : MonoBehaviour
         {
             Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             RaycastHit2D hit = Physics2D.Raycast(mousePos, Vector2.zero);
+            if (clothFlip != null && clothFlip.CurrentAngle < minAngleToInteract)
+            {
+                Debug.Log($"桌布角度不足，无法点击闹钟");
+                return;
+            }
             if (hit.collider != null && hit.collider.gameObject == gameObject)
             {
                 // 检查桌布是否掀开足够角度
@@ -55,12 +66,15 @@ public class AlarmClock : MonoBehaviour
             Debug.LogError($"闹钟 {clockID}: targetPanel 为空");
             return;
         }
-        AlarmPanelController panelCtrl = targetPanel.GetComponent<AlarmPanelController>();
+
+        // 通过接口获取控制器
+        IPanelController panelCtrl = targetPanel.GetComponent<IPanelController>();
         if (panelCtrl == null)
         {
-            Debug.LogError($"闹钟 {clockID}: targetPanel 上没有 AlarmPanelController 组件");
+            Debug.LogError($"闹钟 {clockID}: targetPanel 上没有实现 IPanelController 的组件");
             return;
         }
+
         Debug.Log($"闹钟 {clockID} 调用 panelCtrl.Show(this)");
         panelCtrl.Show(this);
     }
@@ -98,5 +112,36 @@ public class AlarmClock : MonoBehaviour
             if (panelCtrl != null) panelCtrl.Hide();
             else targetPanel.SetActive(false);
         }
+    }
+    // 在 AlarmClock 类中添加以下方法
+
+    public void IncreaseVolume(float delta = 0.1f)
+    {
+        if (alarmSource != null)
+            alarmSource.volume = Mathf.Min(1f, alarmSource.volume + delta);
+    }
+
+    public void SwitchToAlternateClip(AudioClip newClip)
+    {
+        if (alarmSource != null && newClip != null)
+        {
+            bool wasPlaying = alarmSource.isPlaying;
+            alarmSource.clip = newClip;
+            if (wasPlaying)
+                alarmSource.Play();
+        }
+    }
+    public void ToggleAlternateClip(AudioClip alternateClip)
+    {
+        if (alarmSource == null || alternateClip == null) return;
+
+        bool wasPlaying = alarmSource.isPlaying;
+        if (alarmSource.clip == originalClip)
+            alarmSource.clip = alternateClip;
+        else
+            alarmSource.clip = originalClip;
+
+        if (wasPlaying)
+            alarmSource.Play();
     }
 }

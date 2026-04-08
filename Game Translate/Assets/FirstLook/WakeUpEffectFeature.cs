@@ -1,18 +1,19 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
-public class WakeUpEffectFeature : MonoBehaviour
+public class WakeUpEffectFeature : ScriptableRendererFeature
 {
-    // Start is called before the first frame update
-    void Start()
+    [SerializeField] private Material material;
+    private WakeUpEffectPass wakeUpPass;
+
+    public override void Create()
     {
-        
+        wakeUpPass = new WakeUpEffectPass(material);
     }
 
-    // Update is called once per frame
-    void Update()
+    public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
-        
+        if (material != null)
+            renderer.EnqueuePass(wakeUpPass);
     }
 }
