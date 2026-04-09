@@ -57,6 +57,11 @@ public class AlarmClock : MonoBehaviour
 
     void OnClockClicked()
     {
+        if (AlarmManager.Instance != null && !AlarmManager.Instance.CanStopAlarm())
+        {
+            Debug.Log($"倒计时进行中或游戏已结束，无法操作闹钟 {clockID}");
+            return;
+        }
         if (player != null)
         {
             float dist = Vector2.Distance(transform.position, player.position);

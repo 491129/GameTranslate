@@ -30,7 +30,6 @@ public class AlarmManager : MonoBehaviour
     private Tween playerJumpTween;
     private Color originalPlayerColor;
     static public float ST;
-
     void Awake()
     {
         if (Instance == null) Instance = this;
