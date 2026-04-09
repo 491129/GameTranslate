@@ -48,7 +48,7 @@ Shader "Unlit/First"
              };
             v2f o;
             i.pos+=float4(5,0,0,0);
-            i.pos.y=sin(i.pos.x*0.8f)*sins;
+            i.pos.y=sin(i.pos.x*8)*sins;
             i.pos=mul(rotateMatrix,i.pos);
             o.svpos=UnityObjectToClipPos(i.pos);
             o.svuv=i.uv;

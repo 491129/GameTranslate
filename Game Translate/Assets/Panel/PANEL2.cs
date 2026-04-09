@@ -2,53 +2,71 @@ using Unity.VisualScripting.Antlr3.Runtime;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using DG.Tweening;
 
 public class PANEL2 : MonoBehaviour,  IPanelController
 {
     [Header("按钮")]
     public Button volumeUpBtn;      // 增大音量
-    public Button holdColorBtn;     // 按住变色
+    public Button colorAnimBtn;     // 单击变色
     public Button toggleClipBtn;    // 切换音频（来回）
     public Button closeBtn;         // 关闭闹铃
 
     [Header("颜色效果")]
     public Image targetImage;       // 变色的目标图片（例如面板背景）
-    public Color holdColor = Color.red;
+    public Color[] cycleColors = { Color.red, new Color(1f, 0.5f, 0f), Color.yellow, Color.white };
+    public float cycleDuration = 1.25f; // 每个颜色持续1.25秒，4个颜色共5秒
 
     [Header("音频切换")]
     public AudioClip alternateClip; // 备用的铃声
 
     public AlarmClock currentClock;
-    private bool isOpen = false;
+   // private bool isOpen = false;
+    private Tween colorTween;
+    private Color originalColor;
+
 
     void Start()
     {
+        if (targetImage != null)
+        {
+            originalColor = Color.white; // 或 new Color(0.8f, 0.6f, 0.4f) 等
+            targetImage.color = originalColor;
+            // 强制原始颜色不透明
+            originalColor.a = 1f;
+            targetImage.color = originalColor;
+        }
+
         volumeUpBtn.onClick.AddListener(OnVolumeUp);
+        colorAnimBtn.onClick.AddListener(OnColorAnimClick);
         toggleClipBtn.onClick.AddListener(OnToggleClip);
         closeBtn.onClick.AddListener(OnClose);
 
-        // 为 holdColorBtn 添加指针按下/抬起事件
-        AddPointerEvent(holdColorBtn, EventTriggerType.PointerDown, (data) => OnHoldStart());
-        AddPointerEvent(holdColorBtn, EventTriggerType.PointerUp, (data) => OnHoldEnd());
-        AddPointerEvent(holdColorBtn, EventTriggerType.PointerExit, (data) => OnHoldEnd());
-
         gameObject.SetActive(false);
+    }
+    void OnColorAnimClick()
+    {
+        if (targetImage == null) return;
+        // 停止当前动画
+        if (colorTween != null && colorTween.IsActive()) colorTween.Kill();
+        // 创建颜色循环序列
+        Sequence seq = DOTween.Sequence();
+        foreach (Color col in cycleColors)
+        {
+            seq.Append(targetImage.DOColor(col, cycleDuration));
+        }
+        // 动画结束后恢复原始颜色
+        seq.OnComplete(() => {
+            if (targetImage != null) targetImage.color = originalColor;
+        });
+        colorTween = seq.Play();
     }
     void Update()
     {
-        if (!isOpen) return;
-
-        // 检测鼠标左键点击
-        if (Input.GetMouseButtonDown(0))
+        // 按 F 键关闭面板（不停止闹钟）
+        if (Input.GetKeyDown(KeyCode.F) && gameObject.activeSelf)
         {
-            // 获取鼠标位置
-            Vector2 mousePos = Input.mousePosition;
-            // 检查鼠标位置是否在面板的 RectTransform 内
-            if (!RectTransformUtility.RectangleContainsScreenPoint(GetComponent<RectTransform>(), mousePos))
-            {
-                // 点击在面板外部，关闭面板
-                Hide();
-            }
+            Hide();
         }
     }
 
@@ -64,14 +82,24 @@ public class PANEL2 : MonoBehaviour,  IPanelController
 
     void OnHoldStart()
     {
-        if (targetImage != null)
-            targetImage.color = holdColor;
+        if (targetImage == null) return;
+        // 停止之前的动画
+        if (colorTween != null && colorTween.IsActive()) colorTween.Kill();
+        // 创建颜色循环动画：依次变换到 cycleColors 中的颜色，每个颜色持续 cycleDuration 秒，无限循环
+        Sequence seq = DOTween.Sequence();
+        foreach (Color col in cycleColors)
+        {
+            seq.Append(targetImage.DOColor(col, cycleDuration));
+        }
+        colorTween = seq.SetLoops(-1); // 无限循环
     }
+
 
     void OnHoldEnd()
     {
-        if (targetImage != null)
-            targetImage.color = Color.white; // 恢复白色
+        if (targetImage == null) return;
+        if (colorTween != null && colorTween.IsActive()) colorTween.Kill();
+        targetImage.color = originalColor;
     }
 
     void OnVolumeUp()
@@ -88,44 +116,30 @@ public class PANEL2 : MonoBehaviour,  IPanelController
 
     void OnClose()
     {
-        if (currentClock != null)
-        {
-            // 强制停止 AudioSource
-            AudioSource source = currentClock.GetComponent<AudioSource>();
-            if (source != null) source.Stop();
-            // 同步标志（可选）
+        // 停止颜色动画并恢复原色
+        if (colorTween != null && colorTween.IsActive()) colorTween.Kill();
+        if (targetImage != null) targetImage.color = originalColor;
+        if (currentClock != null && currentClock.IsRinging)
             currentClock.StopRinging();
-        }
-        Hide();
     }
 
     public void Show(AlarmClock clock)
     {
         currentClock = clock;
+        // 确保颜色恢复
+        if (targetImage != null)
+        {
+            // 确保显示时不透明
+            targetImage.color = originalColor;
+        }
         gameObject.SetActive(true);
-        isOpen = true;
     }
 
     public void Hide()
     {
+        if (colorTween != null && colorTween.IsActive()) colorTween.Kill();
+        if (targetImage != null) targetImage.color = originalColor;
         gameObject.SetActive(false);
-        isOpen = false;
         currentClock = null;
     }
-
-    // 点击外部关闭面板（闹铃继续响）
-    //public void OnPointerClick(PointerEventData eventData)
-    //{
-    //    GameObject clicked = eventData.pointerCurrentRaycast.gameObject;
-    //    if (clicked != null)
-    //    {
-    //        // 如果点击的是任何按钮（或其子物体），则不关闭面板
-    //        if (clicked == volumeUpBtn.gameObject || clicked.transform.IsChildOf(volumeUpBtn.transform) ||
-    //            clicked == holdColorBtn.gameObject || clicked.transform.IsChildOf(holdColorBtn.transform) ||
-    //            clicked == toggleClipBtn.gameObject || clicked.transform.IsChildOf(toggleClipBtn.transform) ||
-    //            clicked == closeBtn.gameObject || clicked.transform.IsChildOf(closeBtn.transform))
-    //            return;
-    //    }
-    //    Hide(); // 仅关闭面板，不停止闹铃
-    //}
 }

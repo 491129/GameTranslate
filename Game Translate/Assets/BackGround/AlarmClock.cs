@@ -1,5 +1,6 @@
 using Unity.Burst.CompilerServices;
 using UnityEngine;
+using UnityEngine.Events;
 using static AC2;
 
 public class AlarmClock : MonoBehaviour
@@ -8,21 +9,30 @@ public class AlarmClock : MonoBehaviour
     public int clockID;
     public AudioSource alarmSource;
     public GameObject targetPanel;        // 对应的 UI Panel
+    [Header("桌布检测（可选）")]
     public GameObject clothObject;        // 对应的桌布（拖入）
-    public float minAngleToInteract = 30f; // 需要桌布掀开至少多少度才能点击
+    public float minAngleToInteract = 30f;
+    //public float minAngleToInteract = 30f; // 需要桌布掀开至少多少度才能点击
+
+    [Header("玩家交互距离")]
+    public float interactionRange = 2f;   // 玩家必须靠近此距离才能点击
 
     private bool isRinging = false;
+    public Transform player;
     private Drag clothFlip;
 
     public bool IsRinging => isRinging;
 
     private AudioClip originalClip;   // 保存原始铃声
 
+    public UnityEvent onClockStopped;   // 闹钟停止时触发
+
     void Start()
     {
         if (alarmSource == null) alarmSource = GetComponent<AudioSource>();
         if (alarmSource != null) alarmSource.Stop();
         if (targetPanel != null) targetPanel.SetActive(false);
+        //GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
         if (clothObject != null) clothFlip = clothObject.GetComponent<Drag>();
         else Debug.LogWarning($"闹钟 {clockID} 没有关联桌布，将始终允许点击");
         if (alarmSource != null)
@@ -36,31 +46,34 @@ public class AlarmClock : MonoBehaviour
         {
             Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             RaycastHit2D hit = Physics2D.Raycast(mousePos, Vector2.zero);
-            if (clothFlip != null && clothFlip.CurrentAngle < minAngleToInteract)
-            {
-                Debug.Log($"桌布角度不足，无法点击闹钟");
-                return;
-            }
+           
             if (hit.collider != null && hit.collider.gameObject == gameObject)
             {
-                // 检查桌布是否掀开足够角度
-                bool canInteract = true;
-                if (clothFlip != null)
-                {
-                    canInteract = clothFlip.CurrentAngle >= minAngleToInteract;
-                    if (!canInteract)
-                        Debug.Log($"闹钟 {clockID} 被桌布盖住（角度 {clothFlip.CurrentAngle:F1}°），无法点击");
-                }
-                if (canInteract)
-                {
                     OnClockClicked();
-                }
             }
         }
+
     }
 
     void OnClockClicked()
     {
+        if (player != null)
+        {
+            float dist = Vector2.Distance(transform.position, player.position);
+            if (dist > interactionRange)
+            {
+                Debug.Log($"闹钟 {clockID} 太远（距离 {dist:F1}），无法操作");
+                return;
+            }
+        }
+        else
+            Debug.Log("Player=null");
+        if (clothFlip != null && clothFlip.CurrentAngle < minAngleToInteract)
+        {
+            Debug.Log($"闹钟 {clockID} 被桌布盖住（角度 {clothFlip.CurrentAngle:F1}°），无法点击");
+            return;
+        }
+
         if (targetPanel == null)
         {
             Debug.LogError($"闹钟 {clockID}: targetPanel 为空");
@@ -90,28 +103,19 @@ public class AlarmClock : MonoBehaviour
 
     public void StopRinging()
     {
-        if (!isRinging)
+        if (!isRinging) return;
+
+        // 检查是否允许关闭
+        if (AlarmManager.Instance != null && !AlarmManager.Instance.CanStopAlarm())
         {
-            Debug.Log($"闹钟 {clockID} 未在响铃，无需停止");
+            Debug.Log($"闹钟 {clockID} 倒计时中或游戏已结束，无法关闭！");
             return;
         }
+
         isRinging = false;
-        if (alarmSource != null)
-        {
-            alarmSource.Stop();
-            Debug.Log($"闹钟 {clockID} 音频已停止");
-        }
-        else
-        {
-            Debug.LogError($"闹钟 {clockID} 的 alarmSource 为空！");
-        }
-        // 关闭面板（如果还开着）
-        if (targetPanel != null && targetPanel.activeSelf)
-        {
-            AlarmPanelController panelCtrl = targetPanel.GetComponent<AlarmPanelController>();
-            if (panelCtrl != null) panelCtrl.Hide();
-            else targetPanel.SetActive(false);
-        }
+        if (alarmSource != null) alarmSource.Stop();
+        Debug.Log($"闹钟 {clockID} 停止响铃");
+        onClockStopped?.Invoke();
     }
     // 在 AlarmClock 类中添加以下方法
 
@@ -143,5 +147,10 @@ public class AlarmClock : MonoBehaviour
 
         if (wasPlaying)
             alarmSource.Play();
+    }
+    void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(transform.position, interactionRange);
     }
 }

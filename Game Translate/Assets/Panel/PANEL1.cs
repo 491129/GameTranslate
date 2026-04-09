@@ -10,8 +10,6 @@ public class PANEL1 : MonoBehaviour, IPanelController
     private AlarmClock currentClock;
     private bool hasClosed = false;
 
-    private GameObject overlay;  // 全屏遮罩
-
     void Start()
     {
         if (slider != null)
@@ -21,7 +19,14 @@ public class PANEL1 : MonoBehaviour, IPanelController
 
         gameObject.SetActive(false);
     }
-
+    void Update()
+    {
+        // 按 F 键关闭面板（不停止闹钟）
+        if (Input.GetKeyDown(KeyCode.F) && gameObject.activeSelf)
+        {
+            Hide();
+        }
+    }
     void OnEnable()
     {
         if (slider != null)
@@ -35,6 +40,7 @@ public class PANEL1 : MonoBehaviour, IPanelController
     public void Show(AlarmClock clock)
     {
         currentClock = clock;
+        hasClosed = false;
         gameObject.SetActive(true);
         // 注册到全局管理器
        PanelManager.Instance.RegisterOpenPanel(this);
@@ -60,14 +66,4 @@ public class PANEL1 : MonoBehaviour, IPanelController
         }
     }
 
-    //public void OnPointerClick(PointerEventData eventData)
-    //{
-    //    GameObject clicked = eventData.pointerCurrentRaycast.gameObject;
-    //    if (clockImage != null && clicked != null)
-    //    {
-    //        if (clicked == clockImage || clicked.transform.IsChildOf(clockImage.transform))
-    //            return;
-    //    }
-    //    Hide();
-    //}
 }
